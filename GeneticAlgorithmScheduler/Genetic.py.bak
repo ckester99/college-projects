@@ -1,0 +1,265 @@
+import math, random
+"""
+Once a Genetic class is instantiated, the only method coll from outside the class should be generate(). The only fields that should be looked at are the best array and genNum int.
+Initializing a Genetic class calls firstPop() which populates the population array and assigns fitness scores to the species.
+
+generate(): Creates a new population by mixing species of the current generation with high fitness scores. When called this function calls evalFit() which assigns fitness scores
+to each species and then adds the best scorer to the best arr. Next generate() creates an array of popSize new species that replaces the population array.
+
+best[]: The best array holds the best species of the index at genNum. The genNum value for the first generation is 0. The best species in the first generation is best[0].
+
+int genNum: genNum holds the current generation index. The first index is zero.
+"""
+class Genetic:
+
+	best = []	#holds the best genes of each generation
+	teachers = []	#holds teachers and classes they teach
+	population = []	#holds current population
+	genNum = 0	#current generation number
+	currentFit = []	#holds fitness values corresponding to population[]
+	classrooms = ["EP1301","EP1303","EP1340"]	#holds the classrooms where courses can take place
+	popSize = 100	#size of population
+	times = ["8:30","9:30","10:30","11:30","12:30","1:30","2:30","3:30"]	#times when classes can occur
+	mutationRate = 5	#percent chance a gene will randomly change
+	bestFit = []	#holds the best fitness score of the population
+	avgFit = []	#holds the average fitness of each population
+
+	def __init__(self):
+		Bunget = ["Bunget",("EGR390",3),("EGR430",3),("EGR359",3)]
+		Cobb = ["Cobb",("PHY235",4),("PHY470",3)]
+		Claiborne = ["Claiborne",("EGR100T",1)]
+		Crofton = ["Crofton",("PHY125",4),("PHY130",3)]
+		Hereford = ["Hereford",("EGR363",3),("EGR425",3)]	#also EGR140, but this algorithm doesn't account for the computer lab yet
+		Kobrai = ["Kobrai",("PHY255",4),("PHY130",3),("PHY132",3)]
+		Leedy = ["Leedy",("EGR264",3),("EGR360",3),("EGR463",3)]
+		Ridley = ["Ridley",("AST115",3),("PHY370",3)]
+		Rogers = ["Rogers",("EGR259",3),("EGR101",3),("EGR499",3)]
+		#Theide is left out for now because his classes don't follow this format
+		
+		self.teachers.append(Bunget)
+		self.teachers.append(Cobb)
+		self.teachers.append(Claiborne)
+		self.teachers.append(Crofton)
+		self.teachers.append(Hereford)
+		self.teachers.append(Kobrai)
+		self.teachers.append(Leedy)
+		self.teachers.append(Ridley)
+		self.teachers.append(Rogers)
+		
+		self.firstPop()
+		
+	def toDays(self,hours):	#gets called in firstPop() to convert credit hours to days
+		if hours == 3:
+			days = ["MWF","TR"]
+		elif hours == 4:
+			days = ["MTWF"]
+		elif hours == 1:
+			days = ["T"]
+		else :
+			days = ["broke"]
+		return (random.choice(days))
+			
+		
+	def firstPop(self):	#This might drop classes, but I'm unsure. There should be 21 classes in each schedule
+		classes = []
+		
+		for x in self.teachers:	#populates classes[] with a tuple that holds class name, days, and teacher
+			for y in x:
+				if not isinstance(y,str):
+					classes.append((y[0],self.toDays(y[1]),x[0]))
+		random.shuffle(classes)	#randomizes list 
+		#print(classes)	#will not be in final version, testing function
+		
+		for x in range(self.popSize):	#fills population[]
+			genes = {"8:30":0,"9:30":0,"10:30":0,"11:30":0,"12:30":0,"1:30":0,"2:30":0,"3:30":0}	#each time classes start
+			for y in genes:
+				genes[y] = {"EP1301":[0],"EP1303":[0],"EP1340":[0]}	#creates blank gene template
+			
+			queue = classes.copy()	#queue will be depleted
+			#print(("Queued!",len(queue)))	#checking why this only executes once, FIXED: python array variables are pointers to the array, classes.copy() is important
+			while len(queue) > 0:	#executes body until the queue is empty
+				lookingAtT = random.choice(self.times)
+				lookingAtC = random.choice(self.classrooms)
+				lookingAt = genes[lookingAtT][lookingAtC]
+				
+				if lookingAt[0] == 0:
+					genes[lookingAtT][lookingAtC][0] = queue.pop()
+				lookingAt = genes[lookingAtT][lookingAtC][0][1]	#days classroom lookingAt is used
+				
+				if len(queue) > 0:	#CHECK TO SEE IF THIS DROPS CLASSES
+					if (lookingAt == "MWF" and queue[len(queue)-1][1] == "TR") or (lookingAt == "TR" and queue[len(queue)-1][1] == "MWF") and (len(genes[lookingAtT][lookingAtC])<2):	#MWF and TR can both occur at the same time
+						genes[lookingAtT][lookingAtC].append(queue.pop())
+						#print("double")	#CHECK TO SEE IF THIS DROPS CLASSES
+
+			#if x == 0:
+				#print(genes)	#won't be in final
+			self.population.append(genes)
+		self.evalFit()
+		avg = 0
+		bestScore = -99999
+		for x in self.currentFit:
+			avg += x
+			if x > bestScore:
+				bestScore = x
+		self.bestFit.append(bestScore)
+		self.avgFit.append((avg/self.popSize))
+		#self.genNum += 1	#gen0
+		#print(classes)
+		
+	def evalFit(self):
+		self.currentFit = []
+		for x in range(self.popSize):
+			self.currentFit.append(0)
+			
+		timeValues = {"8:30":0,"9:30":0,"10:30":0,"11:30":0,"12:30":0,"1:30":4,"2:30":6,"3:30":8}	#this should technically be a class field, but it is easier to access here
+		for genetics in range(self.popSize):
+			for timeInd in range(len(self.times)):	#checks every time, I need to know the time index number for line 103
+				time = self.times[timeInd]
+				teacherArr = []
+				for classroom in self.classrooms:	#checks every class
+					gene = self.population[genetics][time][classroom]
+					TRflag = False
+					MWFflag = False
+					for x in gene:
+						if (x != 0) and (x[1] == "MWF" or x[1] == "MTWF"):
+							if MWFflag == True:
+								self.currentFit[genetics] -= 100	#lose 100 pts for two concurrent classes in the room
+							else:
+								MWFflag = True
+						if (x != 0) and (x[1] == "TR"):
+							if TRflag == True:
+								self.currentFit[genetics] -= 100	#lose 100 points for two concurrent classes in the room
+							else:
+								TRflag = True
+							self.currentFit[genetics] -= 40	#lose 40 pts for TR classes
+							if timeInd+1 != len(self.times):	#checks TR classes for other class overlap
+								for y in self.population[genetics][self.times[timeInd+1]][classroom]:
+									if (y != 0) and (y[1] == "T" or y[1] == "MTWF" or y[1] == "TR"):
+										self.currentFit[genetics] -= 100	#lose 100 pts for overlapping TR class with T or MTWF class
+						if x == 0:
+							self.currentFit[genetics] += timeValues[time]	#gain value for not having afternoon classes
+						if (x != 0):
+							teacherArr.append(x[2])
+				for t in teacherArr:
+					if teacherArr.count(t) != 1:
+						self.currentFit[genetics] -= 100	#lose 100 points for overlapping teaching times
+		bestFit = -9999999
+		bestInd = 0	#index where best is at
+		for x in range(len(self.currentFit)):
+			if self.currentFit[x] > bestFit:
+				bestFit = self.currentFit[x]
+				bestInd = x
+		self.best.append(self.population[bestInd])
+		#print(self.currentFit[0])
+		
+	def normalize(self,array):	#normalizes array from zero to one where 0 is the lowest value in array and 1 is the highest
+		min = 0
+		max = 0
+		sum = 0
+		for x in array:
+			if x > max:
+				max = x
+			if x < min:
+				min = x
+		for x in range(len(array)):	#sets the lowest score to 0
+			array[x] -= min
+			sum += array[x]
+		for x in range (len(array)):
+			if sum != 0:
+				array[x] = float(array[x])/sum
+			else:
+				array[x] = array[x]
+		return array
+				
+				
+	def generate(self):	
+		#self.evalFit()	#gives each species a fitness score/////////CURRENTLY CALLED AFTER GENERATION
+		self.currentFit = [math.floor(x*10000) for x in self.normalize(self.currentFit)]	#gives each an integer fitness where the array sums to 10000
+		breedingPool = []
+		for x in range(len(self.currentFit)):
+			for y in range(self.currentFit[x]):
+				breedingPool.append(x)	#adds index values for currentFit equal to the number in currentFit at the index
+		
+		newPop = []
+		self.best.reverse()
+		newPop.append(self.best[0])	#adds the best overall species
+		self.best.reverse()
+		
+		for a in range(self.popSize-1):	#generates popSize comparisons
+			spec1 = self.population[random.choice(breedingPool)]	#picks two by roulette
+			spec2 = self.population[random.choice(breedingPool)]
+			#////////////////////////CROSSOVER/////////////////////
+			new = {"8:30":0,"9:30":0,"10:30":0,"11:30":0,"12:30":0,"1:30":0,"2:30":0,"3:30":0}
+			for x in new:
+				new[x] = {"EP1301":[0],"EP1303":[0],"EP1340":[0]}	#generates a set of genes for new
+			queue = []
+			flag = False
+			for time in self.times:	
+				for classroom in self.classrooms:
+					for bundle in spec1[time][classroom]:
+						if bundle != 0:	#this prevents 0s from entering queue
+							flag = False
+							for bundle2 in spec2[time][classroom]:
+								if bundle == bundle2 and new[time][classroom][0] == 0:
+									new[time][classroom][0] = bundle
+									flag = True
+									#if a == 0:	#for testing, can be removed
+										#print(bundle)
+										#print(new[time][classroom])
+								elif bundle == bundle2:
+									new[time][classroom].append(bundle)
+									flag = True
+									#if a == 0:	#for testing, can be removed
+										#print(bundle)
+										#print(new[time][classroom])
+							if flag == False:	#TESTING PURPOSES
+								#if a == 0:
+									#print(bundle)
+								queue.append(bundle)
+					#TODO: complete
+			#if a == 0:	#TESTING PURPOSES
+				#print(queue)
+				#print(len(queue))
+			#/////////////////////////////DISTRIBUTION OF COURSES THAT DIDN'T CROSSOVER///////////////////////
+			while len(queue) != 0:	#I think this drops classes
+				rTime = random.choice(self.times)
+				rClassroom = random.choice(self.classrooms)
+				if len(new[rTime][rClassroom]) == 1:	#if class is not full
+					if new[rTime][rClassroom][0] == 0:
+						new[rTime][rClassroom][0] = queue.pop()	#take one out of the queue
+					else:
+						new[rTime][rClassroom].append(queue.pop())
+			#/////////////////////////////////////MUTATION/////////////////////////////////////////////////////
+			while random.randint(0,99) < self.mutationRate:	#returns an integer 0-99, loop may iterate as long as the function call returns a mutation value
+				T1, T2 = random.choice(self.times), random.choice(self.times)	#time
+				C1, C2 = random.choice(self.classrooms), random.choice(self.classrooms)	#class
+				I1, I2 = random.choice(range(len(new[T1][C1]))), random.choice(range(len(new[T2][C2])))	#index
+				if T1 != T2 and C1 != C2 and I1 != I2:	#python might act buggy if the script says to swap identical indexes
+					new[T1][C1][I1], new[T2][C2][I2] = new[T2][C2][I2], new[T1][C1][I1]	#swaps the two places that are being looked at
+					if new[T1][C1][I1] != 0 and new[T1][C1][I1][1] == "MWF":	#if mutation occurs, change mwf class to tr
+						temp = new[T1][C1][I1]
+						new[T1][C1][I1] = (temp[0],"TR",temp[2])
+					elif new[T1][C1][I1] != 0 and new[T1][C1][I1][1] == "TR":
+						temp = new[T1][C1][I1]
+						new[T1][C1][I1] = (temp[0],"MWF",temp[2])
+		
+			newPop.append(new)
+			
+		
+		self.population = newPop
+		self.evalFit()
+		self.genNum += 1
+		
+		avg = 0
+		bestScore = -99999
+		for x in self.currentFit:
+			avg += x
+			if x > bestScore:
+				bestScore = x
+		self.bestFit.append(bestScore)
+		self.avgFit.append((avg/self.popSize))		
+		
+		#print(breedingPool)	#testing
+		
+if __name__ == "__main__":
+	g = Genetic()	#instantiates the class to call firstPop() through __init__()
